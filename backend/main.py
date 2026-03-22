@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from database import Base, engine
 from routes import ticket_routes, auth_routes
@@ -26,12 +27,20 @@ ensure_legacy_schema()
 
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+extra_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOW_ORIGINS", "").split(",")
+    if origin.strip()
+]
+allow_origins = default_origins + extra_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
