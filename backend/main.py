@@ -21,15 +21,20 @@ def ensure_legacy_schema() -> None:
         columns = {row[1] for row in result.fetchall()}
         if "location" not in columns:
             connection.execute(text("ALTER TABLE tickets ADD COLUMN location VARCHAR"))
+        if "vote_count" not in columns:
+            connection.execute(text("ALTER TABLE tickets ADD COLUMN vote_count INTEGER DEFAULT 0"))
 
 
 ensure_legacy_schema()
 
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
+# Dev allowed origins (localhost on any port)
 default_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
 extra_origins = [
     origin.strip()

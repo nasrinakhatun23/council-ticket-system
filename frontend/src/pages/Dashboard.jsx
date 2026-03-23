@@ -7,6 +7,7 @@ function Dashboard({ onLogout }) {
   const [tickets, setTickets] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [votingTicketIds, setVotingTicketIds] = useState([]);
   const [showLogoutMenu, setShowLogoutMenu] = useState(false);
   const avatarMenuRef = useRef(null);
   const navigate = useNavigate();
@@ -59,6 +60,31 @@ function Dashboard({ onLogout }) {
   const welcomeName = name.split(" ")[0];
   const avatarLetter = name.charAt(0).toUpperCase();
 
+  const handleVote = async (ticketId) => {
+    if (votingTicketIds.includes(ticketId)) {
+      return;
+    }
+
+    setVotingTicketIds((prev) => [...prev, ticketId]);
+    try {
+      const response = await api.post(`/tickets/${ticketId}/vote`);
+      const { vote_count, voted } = response.data;
+
+      setTickets((prevTickets) =>
+        prevTickets.map((ticket) =>
+          ticket.id === ticketId
+            ? { ...ticket, vote_count, has_voted: voted }
+            : ticket
+        )
+      );
+    } catch (error) {
+      const message = error?.response?.data?.detail || "Vote failed. Try again.";
+      alert(message);
+    } finally {
+      setVotingTicketIds((prev) => prev.filter((id) => id !== ticketId));
+    }
+  };
+
   return (
     <div className="dashboard-page">
       <div className="dashboard-shell">
@@ -106,7 +132,12 @@ function Dashboard({ onLogout }) {
                 </div>
               ) : (
                 tickets.map((ticket) => (
-                  <TicketCard key={ticket.id} ticket={ticket} />
+                  <TicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    onVote={handleVote}
+                    isVoting={votingTicketIds.includes(ticket.id)}
+                  />
                 ))
               )}
             </div>
