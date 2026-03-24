@@ -7,6 +7,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from auth import SESSION_SECRET_KEY
 from sqlalchemy import text
 
+DEFAULT_COUNCIL_EMAIL = os.getenv("COUNCIL_EMAIL", "council@gmail.com")
+
 app = FastAPI()
 
 Base.metadata.create_all(bind=engine)
@@ -21,8 +23,23 @@ def ensure_legacy_schema() -> None:
         columns = {row[1] for row in result.fetchall()}
         if "location" not in columns:
             connection.execute(text("ALTER TABLE tickets ADD COLUMN location VARCHAR"))
+        if "category" not in columns:
+            connection.execute(text("ALTER TABLE tickets ADD COLUMN category VARCHAR DEFAULT 'General'"))
+            connection.execute(text("UPDATE tickets SET category = 'General' WHERE category IS NULL"))
+        if "assigned_council" not in columns:
+            connection.execute(text("ALTER TABLE tickets ADD COLUMN assigned_council VARCHAR DEFAULT 'General Council'"))
+            connection.execute(text("UPDATE tickets SET assigned_council = 'General Council' WHERE assigned_council IS NULL"))
+        if "assigned_council_email" not in columns:
+            connection.execute(text("ALTER TABLE tickets ADD COLUMN assigned_council_email VARCHAR"))
+        connection.execute(
+            text("UPDATE tickets SET assigned_council_email = :email WHERE assigned_council_email IS NULL"),
+            {"email": DEFAULT_COUNCIL_EMAIL},
+        )
         if "vote_count" not in columns:
             connection.execute(text("ALTER TABLE tickets ADD COLUMN vote_count INTEGER DEFAULT 0"))
+        if "created_at" not in columns:
+            connection.execute(text("ALTER TABLE tickets ADD COLUMN created_at DATETIME"))
+            connection.execute(text("UPDATE tickets SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"))
 
 
 ensure_legacy_schema()
