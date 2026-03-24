@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../api";
 
 function CreateTicket() {
@@ -10,6 +10,86 @@ function CreateTicket() {
   const [submitting, setSubmitting] = useState(false);
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const [possibleDuplicates, setPossibleDuplicates] = useState([]);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
+  const stopCamera = () => {
+    // Stop all tracks so camera indicator turns off immediately.
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  useEffect(() => {
+    const startCamera = async () => {
+      if (!cameraOpen) {
+        stopCamera();
+        return;
+      }
+
+      try {
+        setCameraError("");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+      } catch (error) {
+        setCameraOpen(false);
+        setCameraError("Camera access nahi mil paya. Browser permission allow karein.");
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      stopCamera();
+    };
+  }, [cameraOpen]);
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError("Camera frame load nahi hua. Thoda wait karke retry karein.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setCameraError("Image capture supported nahi hai.");
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setCameraError("Photo capture fail ho gaya. Dobara try karein.");
+          return;
+        }
+        const capturedFile = new File([blob], `camera-${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
+        setFile(capturedFile);
+        setCameraOpen(false);
+      },
+      "image/jpeg",
+      0.92
+    );
+  };
 
   const checkDuplicates = async () => {
     if (!title.trim()) {
@@ -39,8 +119,8 @@ function CreateTicket() {
   const submit = async (e) => {
     e.preventDefault();
 
-    if (!title.trim() || !desc.trim() || !file) {
-      alert("Title, description aur file required hain.");
+    if (!title.trim() || !desc.trim() || !location || !file) {
+      alert("Title, description, location aur file required hain.");
       return;
     }
 
@@ -102,17 +182,58 @@ function CreateTicket() {
           <option value="General">General</option>
         </select>
 
-        <input
-          placeholder="Location"
-          onChange={(e) => setLocation(e.target.value)}
-        />
+        <select value={location} onChange={(e) => setLocation(e.target.value)}>
+          <option value="">Select Campus Location</option>
+          <option value="Dantewada Campus">Dantewada Campus</option>
+          <option value="Himachal Campus">Himachal Campus</option>
+          <option value="Kishanganj Campus">Kishanganj Campus</option>
+          <option value="Udaipur Campus">Udaipur Campus</option>
+          <option value="Jashpur Campus">Jashpur Campus</option>
+          <option value="Dharmashala Campus">Dharmashala Campus</option>
+          <option value="Sarjapur Campus">Sarjapur Campus</option>
+          <option value="Pune Campus">Pune Campus</option>
+        </select>
 
         <textarea
           placeholder="Description"
           onChange={(e) => setDesc(e.target.value)}
         />
 
-        <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+        <div className="file-camera-row">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files[0])}
+          />
+          <button
+            type="button"
+            className="camera-open-btn"
+            onClick={() => setCameraOpen(true)}
+            disabled={submitting}
+          >
+            Use Camera
+          </button>
+        </div>
+
+        {file ? <p className="selected-file-text">Selected: {file.name}</p> : null}
+
+        {cameraError ? <p className="login-error">{cameraError}</p> : null}
+
+        {cameraOpen ? (
+          <div className="camera-capture-box">
+            <video ref={videoRef} className="camera-preview" autoPlay playsInline muted />
+            <div className="camera-actions">
+              <button type="button" onClick={capturePhoto}>Capture Photo</button>
+              <button
+                type="button"
+                className="login-secondary-button"
+                onClick={() => setCameraOpen(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <button type="submit" disabled={submitting}>
           {submitting ? "Submitting..." : "Submit Ticket"}

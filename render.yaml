@@ -9,3 +9,29 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: APP_ENV
+        value: production
+      - key: ESCALATION_DAYS
+        value: "2"
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET_KEY
+        sync: false
+      - key: CORS_ALLOW_ORIGINS
+        sync: false
+      - key: SMTP_SENDER_EMAIL
+        sync: false
+      - key: SMTP_APP_PASSWORD
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: COUNCIL_EMAIL
+        sync: false
+      - key: COUNCIL_HEALTH_EMAIL
+        sync: false
+      - key: COUNCIL_DISCIPLINE_EMAIL
+        sync: false
+      - key: COUNCIL_CLEANLINESS_EMAIL
+        sync: false

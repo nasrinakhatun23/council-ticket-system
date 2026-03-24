@@ -1,4 +1,5 @@
 import os
+import logging
 from fastapi import FastAPI
 from database import Base, engine
 from routes import ticket_routes, auth_routes
@@ -8,6 +9,9 @@ from auth import SESSION_SECRET_KEY
 from sqlalchemy import text
 
 DEFAULT_COUNCIL_EMAIL = os.getenv("COUNCIL_EMAIL", "council@gmail.com")
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -44,10 +48,33 @@ def ensure_legacy_schema() -> None:
 
 ensure_legacy_schema()
 
+
+def validate_production_config() -> None:
+    if APP_ENV != "production":
+        return
+
+    required_env = [
+        "DATABASE_URL",
+        "SESSION_SECRET_KEY",
+        "CORS_ALLOW_ORIGINS",
+        "SMTP_SENDER_EMAIL",
+        "SMTP_APP_PASSWORD",
+        "COUNCIL_EMAIL",
+    ]
+    missing = [key for key in required_env if not os.getenv(key, "").strip()]
+    if missing:
+        raise RuntimeError(f"Missing required production env vars: {', '.join(missing)}")
+
+    if SESSION_SECRET_KEY == "change-this-secret-key":
+        raise RuntimeError("SESSION_SECRET_KEY must be changed in production")
+
+
+validate_production_config()
+
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
 # Dev allowed origins (localhost on any port)
-default_origins = [
+default_origins = [] if APP_ENV == "production" else [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
@@ -59,6 +86,9 @@ extra_origins = [
     if origin.strip()
 ]
 allow_origins = default_origins + extra_origins
+
+if APP_ENV == "production" and not allow_origins:
+    logger.warning("Production is running with no CORS origins configured")
 
 app.add_middleware(
     CORSMiddleware,

@@ -908,3 +908,57 @@ input, textarea, select {
   border-radius: 6px;
   border: 1px solid #ccc;
 }
+
+.file-camera-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.file-camera-row input[type="file"] {
+  flex: 1;
+  margin-top: 0;
+}
+
+.camera-open-btn {
+  white-space: nowrap;
+  padding: 10px 14px;
+  background: #0f172a;
+}
+
+.camera-capture-box {
+  margin-top: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.camera-preview {
+  width: 100%;
+  max-height: 320px;
+  border-radius: 8px;
+  background: #000;
+  object-fit: cover;
+}
+
+.camera-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.selected-file-text {
+  margin: 6px 0 0;
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+@media (max-width: 680px) {
+  .file-camera-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

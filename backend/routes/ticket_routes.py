@@ -64,7 +64,20 @@ from difflib import SequenceMatcher
 from pydantic import BaseModel, Field
 
 router = APIRouter()
-ESCALATION_DAYS = int(os.getenv("ESCALATION_DAYS", "2"))
+
+
+def get_escalation_days() -> int:
+    raw_value = os.getenv("ESCALATION_DAYS", "2").strip()
+    try:
+        parsed = int(raw_value)
+    except ValueError:
+        return 2
+    if parsed < 1:
+        return 2
+    return parsed
+
+
+ESCALATION_DAYS = get_escalation_days()
 DUPLICATE_SCORE_THRESHOLD = float(os.getenv("DUPLICATE_SCORE_THRESHOLD", "0.75"))
 
 STATUS_MAP = {
