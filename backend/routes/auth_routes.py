@@ -96,7 +96,14 @@ async def google_login(request: Request):
 	if google is None:
 		raise HTTPException(status_code=500, detail="Google OAuth client is not available")
 
-	return await google.authorize_redirect(request, REDIRECT_URI)
+	frontend_origin = (request.headers.get("origin") or "").strip().rstrip("/")
+	if frontend_origin:
+		request.session["oauth_frontend_origin"] = frontend_origin
+
+	redirect_uri = REDIRECT_URI or str(request.url_for("google_callback"))
+	print(f"Google OAuth login redirect_uri={redirect_uri}")
+
+	return await google.authorize_redirect(request, redirect_uri)
 
 
 @router.get("/google/callback")
@@ -104,6 +111,18 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 	google = oauth.create_client("google")
 	if google is None:
 		raise HTTPException(status_code=500, detail="Google OAuth client is not available")
+
+	frontend_origin = (request.session.get("oauth_frontend_origin") or "").strip().rstrip("/")
+	fallback_success = f"{frontend_origin}/oauth-success" if frontend_origin else FRONTEND_AUTH_SUCCESS_URL
+	fallback_error = f"{frontend_origin}/login?oauth=failed" if frontend_origin else FRONTEND_AUTH_ERROR_URL
+
+	success_url = FRONTEND_AUTH_SUCCESS_URL
+	error_url = FRONTEND_AUTH_ERROR_URL
+	if APP_ENV == "production" and frontend_origin:
+		if "localhost" in success_url or "127.0.0.1" in success_url:
+			success_url = fallback_success
+		if "localhost" in error_url or "127.0.0.1" in error_url:
+			error_url = fallback_error
 
 	try:
 		token = await google.authorize_access_token(request)
@@ -145,12 +164,12 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 			"is_admin": bool(db_user.is_admin),
 		}
 		request.session["user"] = session_user
-		return RedirectResponse(url=FRONTEND_AUTH_SUCCESS_URL, status_code=302)
+		return RedirectResponse(url=success_url, status_code=302)
 	except Exception as e:
 		error_message = str(e)
 		print(f"Google OAuth error: {error_message}")
 		request.session.pop("user", None)
-		redirect_url = FRONTEND_AUTH_ERROR_URL
+		redirect_url = error_url
 		if APP_ENV != "production":
 			separator = "&" if "?" in redirect_url else "?"
 			redirect_url = f"{redirect_url}{separator}reason={quote_plus(error_message[:180])}"
