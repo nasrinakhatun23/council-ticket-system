@@ -1,5 +1,6 @@
 import os
 from typing import Generator
+from urllib.parse import quote_plus
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ from auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -145,9 +147,14 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 		request.session["user"] = session_user
 		return RedirectResponse(url=FRONTEND_AUTH_SUCCESS_URL, status_code=302)
 	except Exception as e:
-		print(f"Google OAuth error: {e}")
+		error_message = str(e)
+		print(f"Google OAuth error: {error_message}")
 		request.session.pop("user", None)
-		return RedirectResponse(url=FRONTEND_AUTH_ERROR_URL, status_code=302)
+		redirect_url = FRONTEND_AUTH_ERROR_URL
+		if APP_ENV != "production":
+			separator = "&" if "?" in redirect_url else "?"
+			redirect_url = f"{redirect_url}{separator}reason={quote_plus(error_message[:180])}"
+		return RedirectResponse(url=redirect_url, status_code=302)
 
 
 @router.get("/me")

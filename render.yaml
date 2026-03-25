@@ -17,6 +17,16 @@ services:
         sync: false
       - key: SESSION_SECRET_KEY
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: FRONTEND_AUTH_SUCCESS_URL
+        sync: false
+      - key: FRONTEND_AUTH_ERROR_URL
+        sync: false
       - key: CORS_ALLOW_ORIGINS
         sync: false
       - key: SMTP_SENDER_EMAIL
