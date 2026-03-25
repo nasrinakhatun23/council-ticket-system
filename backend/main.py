@@ -83,9 +83,9 @@ app.add_middleware(
     secret_key=SESSION_SECRET_KEY,
     session_cookie="session",
     max_age=7 * 24 * 60 * 60,  # 7 days
-    same_site="lax" if APP_ENV == "production" else "lax",
-    https_only=True if APP_ENV == "production" else False,
-    http_only=True,
+    same_site="lax",
+    secure=True if APP_ENV == "production" else False,
+    httponly=True,
 )
 
 # Dev allowed origins (localhost on any port)
