@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api";
+import Navbar from "../components/nav";
 
-function CreateTicket() {
+function CreateTicket({ onLogout }) {
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Cleanliness");
+  const [category, setCategory] = useState("English");
   const [desc, setDesc] = useState("");
   const [location, setLocation] = useState("");
   const [file, setFile] = useState(null);
@@ -12,8 +14,22 @@ function CreateTicket() {
   const [possibleDuplicates, setPossibleDuplicates] = useState([]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await api.get("/auth/me");
+        setCurrentUser(res.data);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      }
+    };
+    fetchUser();
+  }, []);
 
   const stopCamera = () => {
     // Stop all tracks so camera indicator turns off immediately.
@@ -119,8 +135,8 @@ function CreateTicket() {
   const submit = async (e) => {
     e.preventDefault();
 
-    if (!title.trim() || !desc.trim() || !location || !file) {
-      alert("Title, description, location aur file required hain.");
+    if (!title.trim() || !desc.trim() || !location) {
+      alert("Title, description aur location required hain.");
       return;
     }
 
@@ -139,7 +155,9 @@ function CreateTicket() {
     formData.append("category", category);
     formData.append("description", desc);
     formData.append("location", location);
-    formData.append("file", file);
+    if (file) {
+      formData.append("file", file);
+    }
 
     try {
       setSubmitting(true);
@@ -150,7 +168,7 @@ function CreateTicket() {
       });
       alert("Ticket Created");
       setTitle("");
-      setCategory("Cleanliness");
+      setCategory("English");
       setDesc("");
       setLocation("");
       setFile(null);
@@ -164,102 +182,141 @@ function CreateTicket() {
   };
 
   return (
-    <div className="container">
-      <h2>Report an Issue</h2>
+    <>
+      <Navbar userName={currentUser?.name || "Student"} onLogout={onLogout} currentPath="/create" />
+      <div className="create-ticket-page">
+        <div className="create-ticket-container">
+          <div className="create-ticket-header">
+            <h1>Report an Issue</h1>
+            <p>Tell us what went wrong so we can help you</p>
+          </div>
 
-      <form onSubmit={submit} className="card">
-        <input
-          placeholder="Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+          <form onSubmit={submit} className="create-ticket-form">
+            <div className="form-group">
+              <label>Issue Title *</label>
+              <input
+                className="form-input"
+                placeholder="Brief description of the issue"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
 
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="Cleanliness">Cleanliness</option>
-          <option value="Water">Water</option>
-          <option value="Health">Health</option>
-          <option value="Discipline">Discipline</option>
-          <option value="General">General</option>
-        </select>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Category *</label>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="form-select">
+                  <option value="English">English</option>
+                  <option value="Life Skill">Life Skill</option>
+                  <option value="Placement">Placement</option>
+                  <option value="IT">IT</option>
+                  <option value="Facility">Facility</option>
+                  <option value="Event">Event</option>
+                  <option value="Safety">Safety</option>
+                  <option value="Onboarding">Onboarding</option>
+                  <option value="Kitchen">Kitchen</option>
+                  <option value="Academic">Academic</option>
+                  <option value="Offboarding">Offboarding</option>
+                </select>
+              </div>
 
-        <select value={location} onChange={(e) => setLocation(e.target.value)}>
-          <option value="">Select Campus Location</option>
-          <option value="Dantewada Campus">Dantewada Campus</option>
-          <option value="Himachal Campus">Himachal Campus</option>
-          <option value="Kishanganj Campus">Kishanganj Campus</option>
-          <option value="Udaipur Campus">Udaipur Campus</option>
-          <option value="Jashpur Campus">Jashpur Campus</option>
-          <option value="Dharmashala Campus">Dharmashala Campus</option>
-          <option value="Sarjapur Campus">Sarjapur Campus</option>
-          <option value="Pune Campus">Pune Campus</option>
-        </select>
+              <div className="form-group">
+                <label>Campus Location *</label>
+                <select value={location} onChange={(e) => setLocation(e.target.value)} className="form-select">
+                  <option value="">Select Campus</option>
+                  <option value="Dantewada Campus">Dantewada Campus</option>
+                  <option value="Himachal Campus">Himachal Campus</option>
+                  <option value="Kishanganj Campus">Kishanganj Campus</option>
+                  <option value="Udaipur Campus">Udaipur Campus</option>
+                  <option value="Jashpur Campus">Jashpur Campus</option>
+                  <option value="Dharmashala Campus">Dharmashala Campus</option>
+                  <option value="Sarjapur Campus">Sarjapur Campus</option>
+                  <option value="Pune Campus">Pune Campus</option>
+                </select>
+              </div>
+            </div>
 
-        <textarea
-          placeholder="Description"
-          onChange={(e) => setDesc(e.target.value)}
-        />
+            <div className="form-group">
+              <label>Description *</label>
+              <textarea
+                className="form-textarea"
+                placeholder="Describe the issue in detail..."
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+              />
+            </div>
 
-        <div className="file-camera-row">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files[0])}
-          />
-          <button
-            type="button"
-            className="camera-open-btn"
-            onClick={() => setCameraOpen(true)}
-            disabled={submitting}
-          >
-            Use Camera
-          </button>
-        </div>
+            <div className="form-group">
+              <label>Add Photo (Optional)</label>
+              <div className="file-camera-row">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFile(e.target.files[0])}
+                  className="form-file"
+                />
+                <button
+                  type="button"
+                  className="camera-open-btn"
+                  onClick={() => setCameraOpen(true)}
+                  disabled={submitting}
+                >
+                  📷 Use Camera
+                </button>
+              </div>
 
-        {file ? <p className="selected-file-text">Selected: {file.name}</p> : null}
+              {file ? <p className="selected-file-text">✓ Selected: {file.name}</p> : null}
 
-        {cameraError ? <p className="login-error">{cameraError}</p> : null}
+              {cameraError ? <p className="login-error">⚠️ {cameraError}</p> : null}
 
-        {cameraOpen ? (
-          <div className="camera-capture-box">
-            <video ref={videoRef} className="camera-preview" autoPlay playsInline muted />
-            <div className="camera-actions">
-              <button type="button" onClick={capturePhoto}>Capture Photo</button>
+              {cameraOpen ? (
+                <div className="camera-capture-box">
+                  <video ref={videoRef} className="camera-preview" autoPlay playsInline muted />
+                  <div className="camera-actions">
+                    <button type="button" className="camera-btn capture-btn" onClick={capturePhoto}>
+                      📸 Capture
+                    </button>
+                    <button
+                      type="button"
+                      className="camera-btn cancel-btn"
+                      onClick={() => setCameraOpen(false)}
+                    >
+                      ✕ Close
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="form-actions">
+              <button type="submit" className="submit-btn" disabled={submitting}>
+                {submitting ? "Submitting..." : "✓ Submit Ticket"}
+              </button>
+
               <button
                 type="button"
-                className="login-secondary-button"
-                onClick={() => setCameraOpen(false)}
+                className="check-dup-btn"
+                onClick={checkDuplicates}
+                disabled={checkingDuplicates || submitting}
               >
-                Cancel
+                {checkingDuplicates ? "Checking..." : "🔍 Check Duplicates"}
               </button>
             </div>
-          </div>
-        ) : null}
 
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Submitting..." : "Submit Ticket"}
-        </button>
-
-        <button
-          type="button"
-          className="login-secondary-button"
-          onClick={checkDuplicates}
-          disabled={checkingDuplicates || submitting}
-        >
-          {checkingDuplicates ? "Checking duplicates..." : "Check Duplicate Issues"}
-        </button>
-
-        {possibleDuplicates.length > 0 ? (
-          <div className="duplicate-warning-box">
-            <strong>Possible Duplicates</strong>
-            {possibleDuplicates.map((item) => (
-              <p key={item.id}>
-                #{item.id} - {item.title} ({item.category}) score {item.score}
-              </p>
-            ))}
-          </div>
-        ) : null}
-      </form>
-    </div>
+            {possibleDuplicates.length > 0 ? (
+              <div className="duplicate-warning-box">
+                <strong>⚠️ Possible Duplicates Found</strong>
+                {possibleDuplicates.map((item) => (
+                  <p key={item.id}>
+                    #{item.id} - {item.title} ({item.category}) - Match: {Math.round(item.score)}%
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </form>
+        </div>
+      </div>
+    </>
   );
 }
 

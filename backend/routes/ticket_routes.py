@@ -95,13 +95,26 @@ def normalize_category(category: str) -> str:
 
 def get_council_for_category(category: str) -> tuple[str, str]:
     fallback_email = os.getenv("COUNCIL_EMAIL", "council@gmail.com")
-    fallback_name = os.getenv("COUNCIL_DEFAULT_NAME", "General Council")
+    fallback_name = os.getenv("COUNCIL_DEFAULT_NAME", "Facility Incharge")
 
     mapping = {
-        "health": ("Health Coordinator", os.getenv("COUNCIL_HEALTH_EMAIL", fallback_email)),
-        "discipline": ("Discipline Coordinator", os.getenv("COUNCIL_DISCIPLINE_EMAIL", fallback_email)),
-        "cleanliness": ("Cleanliness Coordinator", os.getenv("COUNCIL_CLEANLINESS_EMAIL", fallback_email)),
-        "water": ("Cleanliness Coordinator", os.getenv("COUNCIL_CLEANLINESS_EMAIL", fallback_email)),
+        "discipline": ("Discipline Incharge", os.getenv("COUNCIL_DISCIPLINE_EMAIL", fallback_email)),
+        "english": ("English Facilitator", os.getenv("COUNCIL_ENGLISH_EMAIL", fallback_email)),
+        "life skill": ("Life Skill Coach", os.getenv("COUNCIL_LIFESKILL_EMAIL", fallback_email)),
+        "placement": ("Placement Specialist", os.getenv("COUNCIL_PLACEMENT_EMAIL", fallback_email)),
+        "it": ("IT Facilitator", os.getenv("COUNCIL_IT_EMAIL", fallback_email)),
+        "facility": ("Facility Incharge", os.getenv("COUNCIL_FACILITY_EMAIL", fallback_email)),
+        "event": ("Event & Outreach Facilitator", os.getenv("COUNCIL_EVENT_EMAIL", fallback_email)),
+        "safety": ("Safety & Workout Coordinator", os.getenv("COUNCIL_SAFETY_EMAIL", fallback_email)),
+        "onboarding": ("Onboarding & Induction Facilitator", os.getenv("COUNCIL_ONBOARDING_EMAIL", fallback_email)),
+        "health": ("Health & Well-Being Coordinator", os.getenv("COUNCIL_HEALTH_EMAIL", fallback_email)),
+        "kitchen": ("Kitchen & Waste Management Coordinator", os.getenv("COUNCIL_KITCHEN_EMAIL", fallback_email)),
+        "academic": ("Academic Facilitator", os.getenv("COUNCIL_ACADEMIC_EMAIL", fallback_email)),
+        "offboarding": ("Offboarding Coordinator", os.getenv("COUNCIL_OFFBOARDING_EMAIL", fallback_email)),
+        # Legacy categories kept for compatibility.
+        "cleanliness": ("Kitchen & Waste Management Coordinator", os.getenv("COUNCIL_KITCHEN_EMAIL", fallback_email)),
+        "water": ("Facility Incharge", os.getenv("COUNCIL_FACILITY_EMAIL", fallback_email)),
+        "general": (fallback_name, fallback_email),
     }
 
     normalized = normalize_category(category)
@@ -251,6 +264,10 @@ class TicketFeedbackRequest(BaseModel):
     rating: int = Field(ge=1, le=5)
     comment: str = ""
 
+
+class TicketCommentRequest(BaseModel):
+    text: str
+
 # DB connection
 def get_db():
     db = SessionLocal()
@@ -321,13 +338,15 @@ def create_ticket(
     category: str = Form("General"),
     description: str = Form(...),
     location: str = Form(...),
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
     db: Session = Depends(get_db)
 ):
-    try:
-        image_url = upload_image(file.file)
-    except Exception as error:
-        raise HTTPException(status_code=400, detail=f"Image upload failed: {error}")
+    image_url = None
+    if file:
+        try:
+            image_url = upload_image(file.file)
+        except Exception as error:
+            raise HTTPException(status_code=400, detail=f"Image upload failed: {error}")
 
     category_value = category.strip() if category else "General"
     council_name, council_email = get_council_for_category(category_value)
@@ -368,7 +387,7 @@ def create_ticket(
                 f"Description: {description}\n"
                 f"Location: {location}\n"
                 f"Assigned Council: {council_name}\n"
-                f"Image: {image_url}"
+                f"Image: {image_url or 'No image attached'}"
             )
         )
     except Exception:
@@ -444,6 +463,10 @@ def update_ticket_status(
     if not user or user.get("id") is None:
         raise HTTPException(status_code=401, detail="Login required to update status")
 
+    # Check if user is admin
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Only admins can update ticket status")
+
     normalized_status = (payload.status or "").strip().lower()
     mapped_status = STATUS_MAP.get(normalized_status)
     if not mapped_status:
@@ -471,6 +494,36 @@ def update_ticket_status(
 
     feedback_stats_map = get_feedback_stats_map(db)
     return serialize_ticket(ticket, has_voted=has_voted, feedback_stats_map=feedback_stats_map)
+
+
+@router.delete("/tickets/{ticket_id}")
+def delete_ticket(
+    ticket_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user or user.get("id") is None:
+        raise HTTPException(status_code=401, detail="Login required to delete a ticket")
+
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Delete associated votes first (due to foreign key constraints)
+    db.query(models.TicketVote).filter(models.TicketVote.ticket_id == ticket_id).delete()
+
+    # Delete associated feedback
+    db.query(models.TicketFeedback).filter(models.TicketFeedback.ticket_id == ticket_id).delete()
+
+    # Delete the ticket
+    db.delete(ticket)
+    db.commit()
+
+    return {
+        "detail": "Ticket deleted successfully",
+        "ticket_id": ticket_id,
+    }
 
 
 @router.post("/tickets/{ticket_id}/feedback")
@@ -556,6 +609,72 @@ def get_ticket_feedback(ticket_id: int, db: Session = Depends(get_db)):
             }
             for row in rows[:5]
         ],
+    }
+
+
+@router.post("/tickets/{ticket_id}/comments")
+def add_ticket_comment(
+    ticket_id: int,
+    payload: TicketCommentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user or user.get("id") is None:
+        raise HTTPException(status_code=401, detail="Login required to add comment")
+
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    comment_text = payload.text.strip()
+    if not comment_text:
+        raise HTTPException(status_code=400, detail="Comment cannot be empty")
+
+    comment = models.TicketComment(
+        ticket_id=ticket_id,
+        user_id=user["id"],  # Store as integer (database user ID)
+        text=comment_text
+    )
+    db.add(comment)
+    db.commit()
+
+    return {
+        "id": comment.id,
+        "ticket_id": ticket_id,
+        "user_name": user.get("name"),
+        "text": comment_text,
+    }
+
+
+@router.get("/tickets/{ticket_id}/comments")
+def get_ticket_comments(ticket_id: int, db: Session = Depends(get_db)):
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Join comments with user data in a single query
+    comments = (
+        db.query(models.TicketComment, models.User)
+        .join(models.User, models.TicketComment.user_id == models.User.id, isouter=True)
+        .filter(models.TicketComment.ticket_id == ticket_id)
+        .order_by(models.TicketComment.created_at.desc())
+        .all()
+    )
+
+    comments_list = []
+    for comment_record in comments:
+        comment = comment_record[0]
+        user = comment_record[1]
+        comments_list.append({
+            "id": comment.id,
+            "text": comment.text,
+            "user_name": user.name if user else "Anonymous",
+        })
+
+    return {
+        "ticket_id": ticket_id,
+        "comments": comments_list,
     }
 
 

@@ -5,6 +5,7 @@ import Signup from "./pages/Signup";
 import OAuthSuccess from "./pages/OAuthSuccess";
 import Dashboard from "./pages/Dashboard";
 import CreateTicket from "./pages/CreateTicket";
+import Profile from "./pages/Profile";
 import api from "./api";
 import "./App.css";
 
@@ -97,7 +98,11 @@ function App() {
         />
         <Route
           path="/create"
-          element={isLoggedIn ? <CreateTicket /> : <Navigate to="/login" replace />}
+          element={isLoggedIn ? <CreateTicket onLogout={handleLogout} /> : <Navigate to="/login" replace />}
+        />
+        <Route
+          path="/profile"
+          element={isLoggedIn ? <Profile onLogout={handleLogout} /> : <Navigate to="/login" replace />}
         />
       </Routes>
     </BrowserRouter>

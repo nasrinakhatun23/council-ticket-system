@@ -1,4 +1,5 @@
 import { useState } from "react";
+import api from "../api";
 
 function TicketCard({
   ticket,
@@ -8,6 +9,9 @@ function TicketCard({
   isStatusUpdating = false,
   onSubmitFeedback,
   isFeedbackSubmitting = false,
+  onDelete,
+  isDeleting = false,
+  isAdmin = false,
 }) {
   const status = ticket.status || "Pending";
   const statusClass = status.toLowerCase().replace(/\s+/g, "-");
@@ -19,12 +23,38 @@ function TicketCard({
   const feedbackAvg = ticket.feedback_avg;
   const feedbackCount = Number(ticket.feedback_count || 0);
   const [rating, setRating] = useState("5");
-  const [comment, setComment] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   const handleFeedbackSubmit = () => {
-    const trimmedComment = comment.trim();
-    onSubmitFeedback?.(ticket.id, Number(rating), trimmedComment);
-    setComment("");
+    onSubmitFeedback?.(ticket.id, Number(rating), "");
+  };
+
+  const handleCommentSubmit = async () => {
+    if (!commentText.trim()) return;
+    setIsSubmittingComment(true);
+    try {
+      console.log(`Attempting to post comment to /tickets/${ticket.id}/comments`);
+      const response = await api.post(`/tickets/${ticket.id}/comments`, { text: commentText });
+      console.log("Comment posted successfully:", response.data);
+      setCommentText("");
+      
+      const commentsRes = await api.get(`/tickets/${ticket.id}/comments`);
+      console.log("Comments fetched after posting:", commentsRes.data);
+      
+      if (commentsRes.data && commentsRes.data.comments) {
+        const data = commentsRes.data;
+        window.dispatchEvent(new CustomEvent('commentsUpdated', { detail: { ticketId: ticket.id, comments: data.comments } }));
+      }
+    } catch (error) {
+      console.error("Full error object:", error);
+      console.error("Error response:", error.response);
+      console.error("Error message:", error.message);
+      const errorMsg = error.response?.data?.detail || error.message || "Failed to post comment";
+      alert(`Error: ${errorMsg}`);
+    } finally {
+      setIsSubmittingComment(false);
+    }
   };
 
   return (
@@ -60,19 +90,21 @@ function TicketCard({
             {voteCount} vote{voteCount === 1 ? "" : "s"}
           </span>
         </div>
-        <div className="status-row">
-          <label htmlFor={`status-${ticket.id}`}>Status</label>
-          <select
-            id={`status-${ticket.id}`}
-            value={status}
-            disabled={isStatusUpdating}
-            onChange={(event) => onStatusChange?.(ticket.id, event.target.value)}
-          >
-            <option value="Pending">Pending</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Resolved">Resolved</option>
-          </select>
-        </div>
+        {isAdmin && (
+          <div className="status-row">
+            <label htmlFor={`status-${ticket.id}`}>Status</label>
+            <select
+              id={`status-${ticket.id}`}
+              value={status}
+              disabled={isStatusUpdating}
+              onChange={(event) => onStatusChange?.(ticket.id, event.target.value)}
+            >
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Resolved">Resolved</option>
+            </select>
+          </div>
+        )}
         <div className="feedback-summary-row">
           <span className="feedback-label">Rating</span>
           <span className="feedback-value">
@@ -94,21 +126,46 @@ function TicketCard({
             <option value="2">2 - Poor</option>
             <option value="1">1 - Bad</option>
           </select>
-          <input
-            type="text"
-            value={comment}
-            disabled={isFeedbackSubmitting}
-            onChange={(event) => setComment(event.target.value)}
-            placeholder="Optional feedback"
-          />
-          <button
-            type="button"
-            className="feedback-submit-btn"
-            onClick={handleFeedbackSubmit}
-            disabled={isFeedbackSubmitting}
-          >
-            {isFeedbackSubmitting ? "Saving..." : "Submit"}
-          </button>
+        </div>
+        <div className="comment-section">
+          <label htmlFor={`comment-${ticket.id}`}>
+            Add Comment {ticket.comments && ticket.comments.length > 0 && `(${ticket.comments.length})`}
+          </label>
+          <div className="comment-input-row">
+            <input
+              id={`comment-${ticket.id}`}
+              type="text"
+              value={commentText}
+              disabled={isSubmittingComment}
+              onChange={(event) => setCommentText(event.target.value)}
+              placeholder="Add your comment here..."
+              onKeyPress={(e) => e.key === 'Enter' && handleCommentSubmit()}
+            />
+            <button
+              type="button"
+              className="comment-submit-btn"
+              onClick={handleCommentSubmit}
+              disabled={isSubmittingComment || !commentText.trim()}
+            >
+              {isSubmittingComment ? "Posting..." : "Post"}
+            </button>
+          </div>
+          {ticket.comments && Array.isArray(ticket.comments) && ticket.comments.length > 0 ? (
+            <div className="comments-list">
+              {ticket.comments.map((comment, idx) => (
+                <div key={idx} className="comment-item">
+                  <div className="comment-header">
+                    <span className="comment-user">{comment.user_name || "Anonymous"}</span>
+                  </div>
+                  <div className="comment-text">{comment.text}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "8px" }}>
+              No comments yet. Be the first to comment!
+            </div>
+          )}
         </div>
         <small>{ticket.location || "Campus"}</small>
       </div>

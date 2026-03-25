@@ -41,6 +41,10 @@ def ensure_legacy_schema() -> None:
         )
         if "vote_count" not in columns:
             connection.execute(text("ALTER TABLE tickets ADD COLUMN vote_count INTEGER DEFAULT 0"))
+        if "priority" not in columns:
+            connection.execute(text("ALTER TABLE tickets ADD COLUMN priority VARCHAR DEFAULT 'Low'"))
+        if "escalated" not in columns:
+            connection.execute(text("ALTER TABLE tickets ADD COLUMN escalated INTEGER DEFAULT 0"))
         if "created_at" not in columns:
             connection.execute(text("ALTER TABLE tickets ADD COLUMN created_at DATETIME"))
             connection.execute(text("UPDATE tickets SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"))

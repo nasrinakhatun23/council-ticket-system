@@ -14,6 +14,7 @@ REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/goog
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "change-this-secret-key")
 FRONTEND_AUTH_SUCCESS_URL = os.getenv("FRONTEND_AUTH_SUCCESS_URL", "http://localhost:5173/oauth-success")
 FRONTEND_AUTH_ERROR_URL = os.getenv("FRONTEND_AUTH_ERROR_URL", "http://localhost:5173/login?oauth=failed")
+ADMIN_EMAIL = "nasrinakhatun23@navgurukul.org"
 
 def is_google_configured() -> bool:
     return bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)

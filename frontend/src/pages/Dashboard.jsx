@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import TicketCard from "../components/TicketCard";
+import Navbar from "../components/nav";
 
 function Dashboard({ onLogout }) {
   const [tickets, setTickets] = useState([]);
@@ -11,9 +12,9 @@ function Dashboard({ onLogout }) {
   const [votingTicketIds, setVotingTicketIds] = useState([]);
   const [statusUpdatingTicketIds, setStatusUpdatingTicketIds] = useState([]);
   const [feedbackSubmittingTicketIds, setFeedbackSubmittingTicketIds] = useState([]);
+  const [deletingTicketIds, setDeletingTicketIds] = useState([]);
   const [analytics, setAnalytics] = useState(null);
-  const [showLogoutMenu, setShowLogoutMenu] = useState(false);
-  const avatarMenuRef = useRef(null);
+  const [selectedTicket, setSelectedTicket] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,7 +25,29 @@ function Dashboard({ onLogout }) {
           api.get("/auth/me").catch(() => ({ data: null })),
           api.get("/analytics/summary").catch(() => ({ data: null }))
         ]);
-        setTickets(ticketsRes.data || []);
+        
+        // Fetch comments for each ticket
+        const ticketsData = ticketsRes.data || [];
+        const ticketsWithComments = await Promise.all(
+          ticketsData.map(async (ticket) => {
+            try {
+              const commentsRes = await api.get(`/tickets/${ticket.id}/comments`);
+              console.log(`Fetched comments for ticket ${ticket.id}:`, commentsRes.data);
+              const comments = Array.isArray(commentsRes.data?.comments) ? commentsRes.data.comments : [];
+              console.log(`Processed comments for ticket ${ticket.id}:`, comments);
+              return {
+                ...ticket,
+                comments,
+              };
+            } catch (error) {
+              console.error(`Error fetching comments for ticket ${ticket.id}:`, error.message);
+              return { ...ticket, comments: [] };
+            }
+          })
+        );
+        
+        console.log("All tickets with comments:", ticketsWithComments);
+        setTickets(ticketsWithComments);
         setCurrentUser(userRes.data);
         setAnalytics(analyticsRes.data || null);
       } catch (error) {
@@ -37,15 +60,26 @@ function Dashboard({ onLogout }) {
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (avatarMenuRef.current && !avatarMenuRef.current.contains(event.target)) {
-        setShowLogoutMenu(false);
+    const handleCommentsUpdated = async (event) => {
+      const { ticketId, comments } = event.detail;
+      setTickets((prevTickets) =>
+        prevTickets.map((ticket) =>
+          ticket.id === ticketId ? { ...ticket, comments } : ticket
+        )
+      );
+      
+      // Also update selectedTicket if it's the one being commented on
+      if (selectedTicket && selectedTicket.id === ticketId) {
+        setSelectedTicket((prevTicket) => ({
+          ...prevTicket,
+          comments
+        }));
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    window.addEventListener('commentsUpdated', handleCommentsUpdated);
+    return () => window.removeEventListener('commentsUpdated', handleCommentsUpdated);
+  }, [selectedTicket]);
 
   const activeCount = tickets.filter((ticket) => {
     const status = (ticket.status || "").toLowerCase();
@@ -63,8 +97,6 @@ function Dashboard({ onLogout }) {
   }).length;
 
   const name = currentUser?.name?.trim() || currentUser?.email?.split("@")[0] || "Student";
-  const welcomeName = name.split(" ")[0];
-  const avatarLetter = name.charAt(0).toUpperCase();
 
   const handleVote = async (ticketId) => {
     if (votingTicketIds.includes(ticketId)) {
@@ -138,6 +170,31 @@ function Dashboard({ onLogout }) {
     }
   };
 
+  const handleDelete = async (ticketId) => {
+    if (deletingTicketIds.includes(ticketId)) {
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this ticket?")) {
+      return;
+    }
+
+    setDeletingTicketIds((prev) => [...prev, ticketId]);
+    try {
+      await api.delete(`/tickets/${ticketId}`);
+      setTickets((prevTickets) => prevTickets.filter((ticket) => ticket.id !== ticketId));
+      setSelectedTicket(null);
+
+      const analyticsRes = await api.get("/analytics/summary").catch(() => ({ data: null }));
+      setAnalytics(analyticsRes.data || null);
+    } catch (error) {
+      const message = error?.response?.data?.detail || "Delete failed. Try again.";
+      alert(message);
+    } finally {
+      setDeletingTicketIds((prev) => prev.filter((id) => id !== ticketId));
+    }
+  };
+
   const filteredTickets = tickets.filter((ticket) => {
     if (priorityFilter === "all") {
       return true;
@@ -146,53 +203,54 @@ function Dashboard({ onLogout }) {
   });
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-shell">
-        <div className="dashboard-top-bar desktop-top-bar">
-          <div className="dashboard-title-section">
-            <h1 className="dashboard-title">Council Ticket System</h1>
-            <p className="dashboard-subtitle">Manage and track all your complaints in one place</p>
-          </div>
-
-          <div className="profile-header desktop-profile-header">
-            <p className="welcome-text">Welcome {welcomeName} 👋</p>
-            <div className="avatar-menu" ref={avatarMenuRef}>
-              <button
-                className="profile-avatar-top avatar-trigger"
-                type="button"
-                onClick={() => setShowLogoutMenu((prev) => !prev)}
-                aria-label="Open profile menu"
-              >
-                {avatarLetter}
-              </button>
-              {showLogoutMenu ? (
-                <div className="avatar-dropdown">
-                  <button className="logout-btn avatar-logout-btn" onClick={onLogout}>Logout</button>
-                </div>
-              ) : null}
+    <>
+      <Navbar userName={name} onLogout={onLogout} currentPath="/dashboard" />
+      <div className="dashboard-page">
+        <div className="dashboard-shell">
+          <div className="dashboard-top-bar desktop-top-bar">
+            <div className="dashboard-title-section">
+              <div className="title-with-button">
+                <h1 className="dashboard-title">My Tickets</h1>
+                <button className="create-new-ticket-btn" onClick={() => navigate("/create")}>
+                  + Create new ticket 
+                </button>
+              </div>
+              <p className="dashboard-subtitle">Manage and track all your complaints in one place</p>
             </div>
           </div>
-        </div>
 
         <div className="dashboard-main-grid">
           <div className="dashboard-content">
-            <button className="create-new-ticket-btn" onClick={() => navigate("/create")}>
-              + Create New Ticket
-            </button>
+            <div className="tickets-header-row">
+              <div className="stats-container desktop-stats">
+                <div className="stat-box">
+                  <div className="stat-label">ACTIVE</div>
+                  <div className="stat-number">{activeCount}</div>
+                </div>
+                <div className="stat-box">
+                  <div className="stat-label">DONE</div>
+                  <div className="stat-number">{doneCount}</div>
+                </div>
+                <div className="stat-box">
+                  <div className="stat-label">WORK</div>
+                  <div className="stat-number">{workCount}</div>
+                </div>
+              </div>
 
-            <div className="priority-filter-row">
-              <label htmlFor="priority-filter">Filter by priority</label>
-              <select
-                id="priority-filter"
-                value={priorityFilter}
-                onChange={(event) => setPriorityFilter(event.target.value)}
-              >
-                <option value="all">All</option>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
+              <div className="priority-filter-row">
+                <label htmlFor="priority-filter">Filter</label>
+                <select
+                  id="priority-filter"
+                  value={priorityFilter}
+                  onChange={(event) => setPriorityFilter(event.target.value)}
+                >
+                  <option value="all">All</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
             </div>
 
             <div className="latest-issues-title">Latest Issues</div>
@@ -229,41 +287,85 @@ function Dashboard({ onLogout }) {
                   <p className="empty-subtitle">Try selecting a different priority filter</p>
                 </div>
               ) : (
-                filteredTickets.map((ticket) => (
-                  <TicketCard
-                    key={ticket.id}
-                    ticket={ticket}
-                    onVote={handleVote}
-                    isVoting={votingTicketIds.includes(ticket.id)}
-                    onStatusChange={handleStatusChange}
-                    isStatusUpdating={statusUpdatingTicketIds.includes(ticket.id)}
-                    onSubmitFeedback={handleSubmitFeedback}
-                    isFeedbackSubmitting={feedbackSubmittingTicketIds.includes(ticket.id)}
-                  />
-                ))
+                <div className="ticket-grid">
+                  {filteredTickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      className="ticket-summary-card"
+                      onClick={() => setSelectedTicket(ticket)}
+                    >
+                      {ticket.image_url ? (
+                        <img className="ticket-summary-image" src={ticket.image_url} alt={ticket.title} />
+                      ) : (
+                        <div className="ticket-summary-image ticket-summary-image-empty">
+                          <span>📋</span>
+                        </div>
+                      )}
+                      <div className="ticket-summary-content">
+                        <h4 className="ticket-summary-title">{ticket.title}</h4>
+                        <div className="ticket-summary-badges">
+                          <span className={`status-badge ${(ticket.status || "pending").toLowerCase().replace(/\s+/g, "-")}`}>
+                            {(ticket.status || "Pending").slice(0, 3).toUpperCase()}
+                          </span>
+                          <span className={`priority-badge ${(ticket.priority || "low").toLowerCase()}`}>
+                            {(ticket.priority || "Low").toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="ticket-summary-location">{ticket.location || "Campus"}</p>
+                      </div>
+                      <div className="ticket-summary-stats">
+                        <div className="stat-item">
+                          <span className="stat-value">{ticket.vote_count || 0}</span>
+                          <span className="stat-label">Votes</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
+        </div>
 
-          <aside className="dashboard-sidebar">
-            <div className="stats-container desktop-stats">
-              <div className="stat-box">
-                <div className="stat-label">ACTIVE</div>
-                <div className="stat-number">{activeCount}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">DONE</div>
-                <div className="stat-number">{doneCount}</div>
-              </div>
-              <div className="stat-box">
-                <div className="stat-label">WORK</div>
-                <div className="stat-number">{workCount}</div>
+        {selectedTicket && (
+          <div className="ticket-detail-modal" onClick={() => setSelectedTicket(null)}>
+            <div className="ticket-detail-content" onClick={(e) => e.stopPropagation()}>
+              <button className="detail-close-btn" onClick={() => setSelectedTicket(null)}>✕</button>
+              <TicketCard
+                ticket={selectedTicket}
+                onVote={handleVote}
+                isVoting={votingTicketIds.includes(selectedTicket.id)}
+                onStatusChange={handleStatusChange}
+                isStatusUpdating={statusUpdatingTicketIds.includes(selectedTicket.id)}
+                onSubmitFeedback={handleSubmitFeedback}
+                isFeedbackSubmitting={feedbackSubmittingTicketIds.includes(selectedTicket.id)}
+                onDelete={handleDelete}
+                isDeleting={deletingTicketIds.includes(selectedTicket.id)}
+                isAdmin={currentUser?.is_admin || false}
+              />
+              <div className="ticket-detail-actions">
+                <button 
+                  className="detail-submit-btn" 
+                  onClick={() => setSelectedTicket(null)}
+                >
+                  Submit
+                </button>
+                <button 
+                  className="detail-delete-btn" 
+                  onClick={() => {
+                    handleDelete(selectedTicket.id);
+                  }}
+                  disabled={deletingTicketIds.includes(selectedTicket.id)}
+                >
+                  {deletingTicketIds.includes(selectedTicket.id) ? "Deleting..." : "Delete"}
+                </button>
               </div>
             </div>
-          </aside>
-        </div>
+          </div>
+        )}
       </div>
     </div>
+    </>
   );
 }
 

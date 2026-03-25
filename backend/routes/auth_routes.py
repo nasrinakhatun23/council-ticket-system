@@ -1,3 +1,4 @@
+import os
 from typing import Generator
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -12,6 +13,7 @@ from auth import (
 	is_google_configured,
 	FRONTEND_AUTH_SUCCESS_URL,
 	FRONTEND_AUTH_ERROR_URL,
+	ADMIN_EMAIL,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -39,10 +41,13 @@ async def signup(
 	if existing_user:
 		raise HTTPException(status_code=400, detail="Email already registered")
 
+	is_admin = 1 if payload.email.strip().lower() == ADMIN_EMAIL else 0
+
 	user = models.User(
 		name=payload.name.strip(),
 		email=payload.email.strip().lower(),
 		password_hash=hash_password(payload.password),
+		is_admin=is_admin,
 	)
 	db.add(user)
 	db.commit()
@@ -50,7 +55,7 @@ async def signup(
 	request.session.pop("user", None)
 	return {
 		"message": "Signup successful",
-		"user": {"id": user.id, "name": user.name, "email": user.email},
+		"user": {"id": user.id, "name": user.name, "email": user.email, "is_admin": bool(user.is_admin)},
 	}
 
 
@@ -71,6 +76,7 @@ async def login(
 		"id": user.id,
 		"email": user.email,
 		"name": user.name,
+		"is_admin": bool(user.is_admin),
 	}
 	request.session["user"] = session_user
 	return {"message": "Login successful", "user": session_user}
@@ -106,11 +112,15 @@ async def google_callback(request: Request):
 		if not user_info:
 			raise HTTPException(status_code=400, detail="Unable to fetch user profile from Google")
 
+		user_email = user_info.get("email", "").lower()
+		is_admin = user_email == ADMIN_EMAIL
+
 		user = {
 			"id": user_info.get("sub"),
-			"email": user_info.get("email"),
+			"email": user_email,
 			"name": user_info.get("name"),
 			"picture": user_info.get("picture"),
+			"is_admin": is_admin,
 		}
 		request.session["user"] = user
 		return RedirectResponse(url=FRONTEND_AUTH_SUCCESS_URL, status_code=302)
@@ -124,6 +134,9 @@ async def get_current_user(request: Request):
 	user = request.session.get("user")
 	if not user:
 		raise HTTPException(status_code=401, detail="Not logged in")
+	# Ensure is_admin is included
+	if "is_admin" not in user:
+		user["is_admin"] = False
 	return user
 
 

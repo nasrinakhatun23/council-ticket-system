@@ -34,6 +34,7 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    is_admin = Column(Integer, default=0)  # 0 = user, 1 = admin
 
 
 class Ticket(Base):
@@ -51,6 +52,8 @@ class Ticket(Base):
 
     image_url = Column(String)
     vote_count = Column(Integer, default=0)
+    priority = Column(String, default="Low")
+    escalated = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     status = Column(String, default="Pending")
 
@@ -73,4 +76,14 @@ class TicketFeedback(Base):
     reviewer_id = Column(String, nullable=False, index=True)
     rating = Column(Integer, nullable=False)
     comment = Column(Text)
+    created_at = Column(DateTime(timezone=False), server_default=func.now())
+
+
+class TicketComment(Base):
+    __tablename__ = "ticket_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, nullable=False, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    text = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
