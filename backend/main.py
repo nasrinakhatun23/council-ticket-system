@@ -1,12 +1,14 @@
 import os
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from database import Base, engine
 from routes import ticket_routes, auth_routes
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from auth import SESSION_SECRET_KEY
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 DEFAULT_COUNCIL_EMAIL = os.getenv("COUNCIL_EMAIL", "council@gmail.com")
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
@@ -75,7 +77,16 @@ def validate_production_config() -> None:
 
 validate_production_config()
 
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
+# Secure SessionMiddleware with production-safe flags
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET_KEY,
+    session_cookie="session",
+    max_age=7 * 24 * 60 * 60,  # 7 days
+    same_site="lax" if APP_ENV == "production" else "lax",
+    https_only=True if APP_ENV == "production" else False,
+    httponly=True,
+)
 
 # Dev allowed origins (localhost on any port)
 default_origins = [] if APP_ENV == "production" else [
@@ -103,9 +114,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler for unhandled errors."""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    # Don't expose internal error details in production
+    if isinstance(exc, SQLAlchemyError):
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Database error occurred. Please try again later."}
+        )
+    
+    if APP_ENV == "production":
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error. Please try again later."}
+        )
+    else:
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(exc), "type": type(exc).__name__}
+        )
+
 @app.get("/")
 def health_root():
     return {"status": "ok", "service": "council-ticket-system-backend"}
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint for load balancers and monitoring."""
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "database": "disconnected", "error": str(e)}
+        )
+
+@app.get("/ready")
+def readiness_check():
+    """Readiness check for deployment orchestration."""
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        config_status = "valid" if APP_ENV != "production" or all(
+            os.getenv(v) for v in [
+                "DATABASE_URL", "SESSION_SECRET_KEY", "GOOGLE_CLIENT_ID"
+            ]
+        ) else "invalid"
+        return {"ready": config_status == "valid", "config": config_status}
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}")
+        return JSONResponse(status_code=503, content={"ready": False, "error": str(e)})
 
 app.include_router(ticket_routes.router)
 app.include_router(auth_routes.router)
