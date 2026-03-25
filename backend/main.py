@@ -77,7 +77,7 @@ def validate_production_config() -> None:
 
 validate_production_config()
 
-# Secure SessionMiddleware with production-safe flags
+# Secure SessionMiddleware - httponly is enabled by default
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
@@ -85,7 +85,6 @@ app.add_middleware(
     max_age=7 * 24 * 60 * 60,  # 7 days
     same_site="lax",
     https_only=True if APP_ENV == "production" else False,
-    httponly=True,
 )
 
 # Dev allowed origins (localhost on any port)
