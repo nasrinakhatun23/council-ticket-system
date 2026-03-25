@@ -84,7 +84,7 @@ app.add_middleware(
     session_cookie="session",
     max_age=7 * 24 * 60 * 60,  # 7 days
     same_site="lax",
-    secure=True if APP_ENV == "production" else False,
+    https_only=True if APP_ENV == "production" else False,
     httponly=True,
 )
 
