@@ -85,7 +85,7 @@ app.add_middleware(
     max_age=7 * 24 * 60 * 60,  # 7 days
     same_site="lax" if APP_ENV == "production" else "lax",
     https_only=True if APP_ENV == "production" else False,
-    httponly=True,
+    http_only=True,
 )
 
 # Dev allowed origins (localhost on any port)
