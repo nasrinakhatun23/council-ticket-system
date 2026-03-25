@@ -84,6 +84,7 @@ default_origins = [] if APP_ENV == "production" else [
     "http://localhost:5174",
     "http://127.0.0.1:5174",
 ]
+
 extra_origins = [
     origin.strip()
     for origin in os.getenv("CORS_ALLOW_ORIGINS", "").split(",")
@@ -102,5 +103,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def health_root():
+    return {"status": "ok", "service": "council-ticket-system-backend"}
+
 app.include_router(ticket_routes.router)
 app.include_router(auth_routes.router)
+
+
