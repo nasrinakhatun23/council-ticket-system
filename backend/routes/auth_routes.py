@@ -98,7 +98,7 @@ async def google_login(request: Request):
 
 
 @router.get("/google/callback")
-async def google_callback(request: Request):
+async def google_callback(request: Request, db: Session = Depends(get_db)):
 	google = oauth.create_client("google")
 	if google is None:
 		raise HTTPException(status_code=500, detail="Google OAuth client is not available")
@@ -114,17 +114,38 @@ async def google_callback(request: Request):
 
 		user_email = user_info.get("email", "").lower()
 		is_admin = user_email == ADMIN_EMAIL
+		user_name = user_info.get("name", "User")
 
-		user = {
-			"id": user_info.get("sub"),
+		# Create or get user in database
+		db_user = db.query(models.User).filter(models.User.email == user_email).first()
+		if not db_user:
+			# Create new user from Google OAuth
+			db_user = models.User(
+				name=user_name,
+				email=user_email,
+				password_hash="",  # Empty for OAuth users
+				is_admin=1 if is_admin else 0,
+			)
+			db.add(db_user)
+			db.commit()
+			db.refresh(db_user)
+		else:
+			# Update admin status if needed
+			if is_admin and not db_user.is_admin:
+				db_user.is_admin = 1
+				db.commit()
+
+		# Store database user ID (integer) in session, not Google sub
+		session_user = {
+			"id": db_user.id,  # Database integer ID, not Google sub string
 			"email": user_email,
-			"name": user_info.get("name"),
-			"picture": user_info.get("picture"),
-			"is_admin": is_admin,
+			"name": user_name,
+			"is_admin": bool(db_user.is_admin),
 		}
-		request.session["user"] = user
+		request.session["user"] = session_user
 		return RedirectResponse(url=FRONTEND_AUTH_SUCCESS_URL, status_code=302)
-	except Exception:
+	except Exception as e:
+		print(f"Google OAuth error: {e}")
 		request.session.pop("user", None)
 		return RedirectResponse(url=FRONTEND_AUTH_ERROR_URL, status_code=302)
 

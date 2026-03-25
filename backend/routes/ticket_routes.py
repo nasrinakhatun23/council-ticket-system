@@ -588,14 +588,21 @@ def get_ticket_feedback(ticket_id: int, db: Session = Depends(get_db)):
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    rows = (
-        db.query(models.TicketFeedback)
+    # Join feedback with user data to get reviewer names
+    feedback_rows = (
+        db.query(models.TicketFeedback, models.User)
+        .join(models.User, models.TicketFeedback.reviewer_id == models.User.id, isouter=True)
         .filter(models.TicketFeedback.ticket_id == ticket_id)
         .order_by(models.TicketFeedback.id.desc())
         .all()
     )
-    feedback_count = len(rows)
-    feedback_avg = round(sum(int(row.rating) for row in rows) / feedback_count, 2) if feedback_count else None
+    
+    feedback_count = len(feedback_rows)
+    feedback_avg = (
+        round(sum(int(feedback.rating) for feedback, user in feedback_rows) / feedback_count, 2)
+        if feedback_count
+        else None
+    )
 
     return {
         "ticket_id": ticket_id,
@@ -603,11 +610,11 @@ def get_ticket_feedback(ticket_id: int, db: Session = Depends(get_db)):
         "feedback_avg": feedback_avg,
         "recent_feedback": [
             {
-                "rating": int(row.rating),
-                "comment": row.comment or "",
-                "reviewer_id": row.reviewer_id,
+                "rating": int(feedback.rating),
+                "comment": feedback.comment or "",
+                "reviewer_name": user.name if user else "Anonymous",
             }
-            for row in rows[:5]
+            for feedback, user in feedback_rows[:5]
         ],
     }
 
@@ -642,6 +649,7 @@ def add_ticket_comment(
     return {
         "id": comment.id,
         "ticket_id": ticket_id,
+        "user_id": user["id"],
         "user_name": user.get("name"),
         "text": comment_text,
     }
@@ -669,12 +677,85 @@ def get_ticket_comments(ticket_id: int, db: Session = Depends(get_db)):
         comments_list.append({
             "id": comment.id,
             "text": comment.text,
+            "user_id": comment.user_id,
             "user_name": user.name if user else "Anonymous",
+            "created_at": comment.created_at.isoformat() if comment.created_at else None,
         })
 
     return {
         "ticket_id": ticket_id,
         "comments": comments_list,
+    }
+
+
+@router.put("/tickets/{ticket_id}/comments/{comment_id}")
+def update_ticket_comment(
+    ticket_id: int,
+    comment_id: int,
+    payload: TicketCommentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user or user.get("id") is None:
+        raise HTTPException(status_code=401, detail="Login required to update comment")
+
+    comment = db.query(models.TicketComment).filter(
+        models.TicketComment.id == comment_id,
+        models.TicketComment.ticket_id == ticket_id
+    ).first()
+    
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    # Only allow the comment author to edit
+    if comment.user_id != user["id"]:
+        raise HTTPException(status_code=403, detail="Only comment author can edit")
+
+    comment_text = payload.text.strip()
+    if not comment_text:
+        raise HTTPException(status_code=400, detail="Comment cannot be empty")
+
+    comment.text = comment_text
+    db.commit()
+
+    return {
+        "id": comment.id,
+        "ticket_id": ticket_id,
+        "text": comment_text,
+        "message": "Comment updated successfully"
+    }
+
+
+@router.delete("/tickets/{ticket_id}/comments/{comment_id}")
+def delete_ticket_comment(
+    ticket_id: int,
+    comment_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user or user.get("id") is None:
+        raise HTTPException(status_code=401, detail="Login required to delete comment")
+
+    comment = db.query(models.TicketComment).filter(
+        models.TicketComment.id == comment_id,
+        models.TicketComment.ticket_id == ticket_id
+    ).first()
+    
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+    # Only allow the comment author to delete
+    if comment.user_id != user["id"]:
+        raise HTTPException(status_code=403, detail="Only comment author can delete")
+
+    db.delete(comment)
+    db.commit()
+
+    return {
+        "message": "Comment deleted successfully",
+        "comment_id": comment_id
     }
 
 

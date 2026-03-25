@@ -114,18 +114,27 @@ function TicketCard({
         </div>
         <div className="feedback-row">
           <label htmlFor={`rating-${ticket.id}`}>Rate</label>
-          <select
-            id={`rating-${ticket.id}`}
-            value={rating}
-            disabled={isFeedbackSubmitting}
-            onChange={(event) => setRating(event.target.value)}
-          >
-            <option value="5">5 - Excellent</option>
-            <option value="4">4 - Good</option>
-            <option value="3">3 - Average</option>
-            <option value="2">2 - Poor</option>
-            <option value="1">1 - Bad</option>
-          </select>
+          <div className="feedback-input-group">
+            <select
+              id={`rating-${ticket.id}`}
+              value={rating}
+              disabled={isFeedbackSubmitting}
+              onChange={(event) => setRating(event.target.value)}
+            >
+              <option value="5">5 - Excellent</option>
+              <option value="4">4 - Good</option>
+              <option value="3">3 - Average</option>
+              <option value="2">2 - Poor</option>
+              <option value="1">1 - Bad</option>
+            </select>
+            <button
+              className="feedback-submit-btn"
+              onClick={handleFeedbackSubmit}
+              disabled={isFeedbackSubmitting}
+            >
+              {isFeedbackSubmitting ? "Submitting..." : "Send"}
+            </button>
+          </div>
         </div>
         <div className="comment-section">
           <label htmlFor={`comment-${ticket.id}`}>

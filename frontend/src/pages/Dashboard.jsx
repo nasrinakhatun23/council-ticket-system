@@ -26,28 +26,34 @@ function Dashboard({ onLogout }) {
           api.get("/analytics/summary").catch(() => ({ data: null }))
         ]);
         
-        // Fetch comments for each ticket
+        // Fetch comments and feedback for each ticket
         const ticketsData = ticketsRes.data || [];
-        const ticketsWithComments = await Promise.all(
+        const ticketsWithData = await Promise.all(
           ticketsData.map(async (ticket) => {
             try {
-              const commentsRes = await api.get(`/tickets/${ticket.id}/comments`);
-              console.log(`Fetched comments for ticket ${ticket.id}:`, commentsRes.data);
+              const [commentsRes, feedbackRes] = await Promise.all([
+                api.get(`/tickets/${ticket.id}/comments`).catch(() => ({ data: { comments: [] } })),
+                api.get(`/tickets/${ticket.id}/feedback`).catch(() => ({ data: { feedback_avg: null, feedback_count: 0 } }))
+              ]);
+              
               const comments = Array.isArray(commentsRes.data?.comments) ? commentsRes.data.comments : [];
-              console.log(`Processed comments for ticket ${ticket.id}:`, comments);
+              const feedback_avg = feedbackRes.data?.feedback_avg || null;
+              const feedback_count = feedbackRes.data?.feedback_count || 0;
+              
               return {
                 ...ticket,
                 comments,
+                feedback_avg,
+                feedback_count,
               };
             } catch (error) {
-              console.error(`Error fetching comments for ticket ${ticket.id}:`, error.message);
-              return { ...ticket, comments: [] };
+              console.error(`Error fetching data for ticket ${ticket.id}:`, error.message);
+              return { ...ticket, comments: [], feedback_avg: null, feedback_count: 0 };
             }
           })
         );
         
-        console.log("All tickets with comments:", ticketsWithComments);
-        setTickets(ticketsWithComments);
+        setTickets(ticketsWithData);
         setCurrentUser(userRes.data);
         setAnalytics(analyticsRes.data || null);
       } catch (error) {
@@ -159,6 +165,15 @@ function Dashboard({ onLogout }) {
           ticket.id === ticketId ? { ...ticket, feedback_avg, feedback_count } : ticket
         )
       );
+
+      // Also update selectedTicket if it's the one being rated
+      if (selectedTicket && selectedTicket.id === ticketId) {
+        setSelectedTicket((prevTicket) => ({
+          ...prevTicket,
+          feedback_avg,
+          feedback_count
+        }));
+      }
 
       const analyticsRes = await api.get("/analytics/summary").catch(() => ({ data: null }));
       setAnalytics(analyticsRes.data || null);
