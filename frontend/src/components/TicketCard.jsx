@@ -12,6 +12,7 @@ function TicketCard({
   onDelete,
   isDeleting = false,
   isAdmin = false,
+  currentUser = null,
 }) {
   const status = ticket.status || "Pending";
   const statusClass = status.toLowerCase().replace(/\s+/g, "-");
@@ -25,9 +26,32 @@ function TicketCard({
   const [rating, setRating] = useState("5");
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const [savingCommentId, setSavingCommentId] = useState(null);
+  const [deletingCommentId, setDeletingCommentId] = useState(null);
+  const [editedAtByCommentId, setEditedAtByCommentId] = useState({});
 
   const handleFeedbackSubmit = () => {
     onSubmitFeedback?.(ticket.id, Number(rating), "");
+  };
+
+  const refreshTicketComments = async () => {
+    const commentsRes = await api.get(`/tickets/${ticket.id}/comments`);
+    if (commentsRes.data && commentsRes.data.comments) {
+      window.dispatchEvent(
+        new CustomEvent("commentsUpdated", {
+          detail: { ticketId: ticket.id, comments: commentsRes.data.comments },
+        })
+      );
+    }
+  };
+
+  const isCommentOwner = (comment) => {
+    if (!currentUser || currentUser.id == null) {
+      return false;
+    }
+    return Number(comment.user_id) === Number(currentUser.id);
   };
 
   const handleCommentSubmit = async () => {
@@ -38,14 +62,7 @@ function TicketCard({
       const response = await api.post(`/tickets/${ticket.id}/comments`, { text: commentText });
       console.log("Comment posted successfully:", response.data);
       setCommentText("");
-      
-      const commentsRes = await api.get(`/tickets/${ticket.id}/comments`);
-      console.log("Comments fetched after posting:", commentsRes.data);
-      
-      if (commentsRes.data && commentsRes.data.comments) {
-        const data = commentsRes.data;
-        window.dispatchEvent(new CustomEvent('commentsUpdated', { detail: { ticketId: ticket.id, comments: data.comments } }));
-      }
+      await refreshTicketComments();
     } catch (error) {
       console.error("Full error object:", error);
       console.error("Error response:", error.response);
@@ -54,6 +71,58 @@ function TicketCard({
       alert(`Error: ${errorMsg}`);
     } finally {
       setIsSubmittingComment(false);
+    }
+  };
+
+  const startEditingComment = (comment) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.text || "");
+  };
+
+  const cancelEditingComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentText("");
+  };
+
+  const handleSaveComment = async (commentId) => {
+    if (!editingCommentText.trim()) {
+      alert("Comment cannot be empty");
+      return;
+    }
+
+    setSavingCommentId(commentId);
+    try {
+      await api.put(`/tickets/${ticket.id}/comments/${commentId}`, {
+        text: editingCommentText,
+      });
+      setEditedAtByCommentId((prev) => ({ ...prev, [commentId]: new Date().toISOString() }));
+      cancelEditingComment();
+      await refreshTicketComments();
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.message || "Failed to update comment";
+      alert(`Error: ${errorMsg}`);
+    } finally {
+      setSavingCommentId(null);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm("Are you sure you want to delete this comment?")) {
+      return;
+    }
+
+    setDeletingCommentId(commentId);
+    try {
+      await api.delete(`/tickets/${ticket.id}/comments/${commentId}`);
+      if (editingCommentId === commentId) {
+        cancelEditingComment();
+      }
+      await refreshTicketComments();
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.message || "Failed to delete comment";
+      alert(`Error: ${errorMsg}`);
+    } finally {
+      setDeletingCommentId(null);
     }
   };
 
@@ -162,11 +231,74 @@ function TicketCard({
           {ticket.comments && Array.isArray(ticket.comments) && ticket.comments.length > 0 ? (
             <div className="comments-list">
               {ticket.comments.map((comment, idx) => (
-                <div key={idx} className="comment-item">
+                <div key={comment.id ?? idx} className="comment-item">
                   <div className="comment-header">
                     <span className="comment-user">{comment.user_name || "Anonymous"}</span>
+                    {isCommentOwner(comment) ? <span className="comment-you-badge">You</span> : null}
                   </div>
-                  <div className="comment-text">{comment.text}</div>
+                  {editingCommentId === comment.id ? (
+                    <div className="comment-edit-block">
+                      <input
+                        type="text"
+                        value={editingCommentText}
+                        onChange={(event) => setEditingCommentText(event.target.value)}
+                        className="comment-edit-input"
+                        disabled={savingCommentId === comment.id}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            handleSaveComment(comment.id);
+                          }
+                        }}
+                      />
+                      <div className="comment-actions-row">
+                        <button
+                          type="button"
+                          className="comment-action-btn save"
+                          onClick={() => handleSaveComment(comment.id)}
+                          disabled={savingCommentId === comment.id}
+                        >
+                          {savingCommentId === comment.id ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          className="comment-action-btn cancel"
+                          onClick={cancelEditingComment}
+                          disabled={savingCommentId === comment.id}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="comment-text">{comment.text}</div>
+                      {editedAtByCommentId[comment.id] ? (
+                        <div className="comment-meta-row">
+                          <span className="comment-edited-tag">Edited</span>
+                        </div>
+                      ) : null}
+                      {isCommentOwner(comment) ? (
+                        <div className="comment-actions-row">
+                          <button
+                            type="button"
+                            className="comment-action-btn edit"
+                            onClick={() => startEditingComment(comment)}
+                            disabled={deletingCommentId === comment.id}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="comment-action-btn delete"
+                            onClick={() => handleDeleteComment(comment.id)}
+                            disabled={deletingCommentId === comment.id}
+                          >
+                            {deletingCommentId === comment.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </div>
               ))}
             </div>

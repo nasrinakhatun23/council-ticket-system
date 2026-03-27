@@ -357,6 +357,7 @@ function Dashboard({ onLogout }) {
                 onDelete={handleDelete}
                 isDeleting={deletingTicketIds.includes(selectedTicket.id)}
                 isAdmin={currentUser?.is_admin || false}
+                currentUser={currentUser}
               />
               <div className="ticket-detail-actions">
                 <button 

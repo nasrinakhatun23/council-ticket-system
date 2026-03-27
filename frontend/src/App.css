@@ -1156,6 +1156,7 @@ body {
 .comment-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   margin-bottom: 6px;
 }
 
@@ -1167,11 +1168,111 @@ body {
   letter-spacing: 0.5px;
 }
 
+.comment-you-badge {
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.comment-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.comment-meta-time {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.comment-edited-tag {
+  font-size: 0.68rem;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
 .comment-text {
   font-size: 0.82rem;
   color: #374151;
   line-height: 1.4;
   word-wrap: break-word;
+}
+
+.comment-edit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-edit-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.comment-edit-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.comment-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.comment-action-btn {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.comment-action-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.comment-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.comment-action-btn.edit {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.comment-action-btn.delete {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.comment-action-btn.save {
+  border-color: #86efac;
+  color: #166534;
+}
+
+.comment-action-btn.cancel {
+  border-color: #cbd5e1;
+  color: #475569;
 }
 
 .vote-btn {
