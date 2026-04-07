@@ -33,12 +33,12 @@ function Dashboard({ onLogout }) {
             try {
               const [commentsRes, feedbackRes] = await Promise.all([
                 api.get(`/tickets/${ticket.id}/comments`).catch(() => ({ data: { comments: [] } })),
-                api.get(`/tickets/${ticket.id}/feedback`).catch(() => ({ data: { feedback_avg: null, feedback_count: 0 } }))
+                api.get(`/tickets/${ticket.id}/feedback`).catch(() => null)
               ]);
               
               const comments = Array.isArray(commentsRes.data?.comments) ? commentsRes.data.comments : [];
-              const feedback_avg = feedbackRes.data?.feedback_avg || null;
-              const feedback_count = feedbackRes.data?.feedback_count || 0;
+              const feedback_avg = feedbackRes?.data?.feedback_avg ?? ticket.feedback_avg ?? null;
+              const feedback_count = feedbackRes?.data?.feedback_count ?? ticket.feedback_count ?? 0;
               
               return {
                 ...ticket,

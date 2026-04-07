@@ -159,21 +159,23 @@ function TicketCard({
             {voteCount} vote{voteCount === 1 ? "" : "s"}
           </span>
         </div>
-        {isAdmin && (
-          <div className="status-row">
-            <label htmlFor={`status-${ticket.id}`}>Status</label>
-            <select
-              id={`status-${ticket.id}`}
-              value={status}
-              disabled={isStatusUpdating}
-              onChange={(event) => onStatusChange?.(ticket.id, event.target.value)}
-            >
-              <option value="Pending">Pending</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved</option>
-            </select>
+        {isAdmin ? (
+          <div className="ticket-status-block">
+            <span className="ticket-status-label">Update Status</span>
+            <div className="status-row">
+              <select
+                id={`status-${ticket.id}`}
+                value={status}
+                disabled={isStatusUpdating}
+                onChange={(event) => onStatusChange?.(ticket.id, event.target.value)}
+              >
+                <option value="Pending">Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+            </div>
           </div>
-        )}
+        ) : null}
         <div className="feedback-summary-row">
           <span className="feedback-label">Rating</span>
           <span className="feedback-value">

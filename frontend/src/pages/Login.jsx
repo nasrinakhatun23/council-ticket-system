@@ -11,6 +11,7 @@ function Login({ onLoginSuccess }) {
   const navigate = useNavigate();
   const oauthFailed = searchParams.get("oauth") === "failed";
   const registeredAccount = searchParams.get("registered") === "1";
+  const recoveredAccount = searchParams.get("recovered") === "1";
 
   const handleGoogleLogin = () => {
     window.location.href = `${API_BASE_URL}/auth/google/login`;
@@ -49,10 +50,11 @@ function Login({ onLoginSuccess }) {
 
         <form onSubmit={handleSubmit} className="login-form">
           <input
-            type="email"
-            placeholder="Email"
+            type="text"
+            placeholder="Email or Username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="username"
           />
           <input
             type="password"
@@ -64,6 +66,7 @@ function Login({ onLoginSuccess }) {
           {error && <p className="login-error">{error}</p>}
           {oauthFailed && <p className="login-error">Google login failed. Please try again.</p>}
           {registeredAccount && <p className="login-subtitle">Account already exists. Please login.</p>}
+          {recoveredAccount && <p className="login-subtitle">Password updated. Please login with new password.</p>}
 
           <button type="submit" className="login-button" disabled={loading}>
             {loading ? "Signing in..." : "Login"}

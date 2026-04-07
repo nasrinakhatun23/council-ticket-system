@@ -25,13 +25,17 @@ function Signup({ onSignup }) {
 
     try {
       setLoading(true);
-      await api.post("/auth/signup", {
+      const response = await api.post("/auth/signup", {
         name: name.trim(),
         email: email.trim(),
         password,
       });
       setError("");
       onSignup();
+      if (response?.data?.account_recovered) {
+        navigate("/login?recovered=1");
+        return;
+      }
       navigate("/login");
     } catch (apiError) {
       const message = apiError?.response?.data?.detail || "Signup failed. Backend server run karke try karein.";
