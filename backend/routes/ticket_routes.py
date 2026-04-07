@@ -588,18 +588,26 @@ def get_ticket_feedback(ticket_id: int, db: Session = Depends(get_db)):
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    # Join feedback with user data to get reviewer names
+    # Query feedback and manually match with users since reviewer_id is stored as string
     feedback_rows = (
-        db.query(models.TicketFeedback, models.User)
-        .join(models.User, models.TicketFeedback.reviewer_id == models.User.id, isouter=True)
+        db.query(models.TicketFeedback)
         .filter(models.TicketFeedback.ticket_id == ticket_id)
         .order_by(models.TicketFeedback.id.desc())
         .all()
     )
     
+    # Fetch all users for manual matching
+    users_map = {str(u.id): u for u in db.query(models.User).all()}
+    
+    # Pair feedback with users
+    feedback_with_users = []
+    for fb in feedback_rows:
+        user = users_map.get(str(fb.reviewer_id))
+        feedback_with_users.append((fb, user))
+    
     feedback_count = len(feedback_rows)
     feedback_avg = (
-        round(sum(int(feedback.rating) for feedback, user in feedback_rows) / feedback_count, 2)
+        round(sum(int(fb.rating) for fb in feedback_rows) / feedback_count, 2)
         if feedback_count
         else None
     )
@@ -614,7 +622,7 @@ def get_ticket_feedback(ticket_id: int, db: Session = Depends(get_db)):
                 "comment": feedback.comment or "",
                 "reviewer_name": user.name if user else "Anonymous",
             }
-            for feedback, user in feedback_rows[:5]
+            for feedback, user in feedback_with_users[:5]
         ],
     }
 

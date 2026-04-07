@@ -4,6 +4,7 @@ from urllib.parse import quote_plus
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
 from database import SessionLocal
 import hashlib
 import models
@@ -41,7 +42,22 @@ async def signup(
 ):
 	existing_user = db.query(models.User).filter(models.User.email == payload.email.strip().lower()).first()
 	if existing_user:
-		raise HTTPException(status_code=400, detail="Email already registered")
+		existing_user.name = payload.name.strip() or existing_user.name
+		existing_user.password_hash = hash_password(payload.password)
+		existing_user.is_admin = 1 if existing_user.email == ADMIN_EMAIL else existing_user.is_admin
+		db.commit()
+		db.refresh(existing_user)
+		request.session.pop("user", None)
+		return {
+			"message": "Account exists. Password updated. Please login.",
+			"account_recovered": True,
+			"user": {
+				"id": existing_user.id,
+				"name": existing_user.name,
+				"email": existing_user.email,
+				"is_admin": bool(existing_user.is_admin),
+			},
+		}
 
 	is_admin = 1 if payload.email.strip().lower() == ADMIN_EMAIL else 0
 
@@ -67,7 +83,17 @@ async def login(
 	request: Request,
 	db: Session = Depends(get_db),
 ):
-	user = db.query(models.User).filter(models.User.email == payload.email.strip().lower()).first()
+	identifier = payload.email.strip().lower()
+	user = (
+		db.query(models.User)
+		.filter(
+			or_(
+				func.lower(models.User.email) == identifier,
+				func.lower(models.User.name) == identifier,
+			)
+		)
+		.first()
+	)
 	if not user:
 		raise HTTPException(status_code=401, detail="Invalid email or password")
 
