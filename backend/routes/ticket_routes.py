@@ -716,7 +716,10 @@ def update_ticket_comment(
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
 
-    # Only allow the comment author to edit
+    # Only student authors can edit their own comments.
+    if user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Council users cannot edit comments")
+
     if comment.user_id != user["id"]:
         raise HTTPException(status_code=403, detail="Only comment author can edit")
 
@@ -754,7 +757,10 @@ def delete_ticket_comment(
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
 
-    # Only allow the comment author to delete
+    # Only student authors can delete their own comments.
+    if user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Council users cannot delete comments")
+
     if comment.user_id != user["id"]:
         raise HTTPException(status_code=403, detail="Only comment author can delete")
 

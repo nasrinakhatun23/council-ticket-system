@@ -56,6 +56,7 @@ class Ticket(Base):
     escalated = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=False), server_default=func.now())
     status = Column(String, default="Pending")
+    
 
 
 class TicketVote(Base):
