@@ -51,6 +51,9 @@ function TicketCard({
     if (!currentUser || currentUser.id == null) {
       return false;
     }
+    if (isAdmin || currentUser.is_admin) {
+      return false;
+    }
     return Number(comment.user_id) === Number(currentUser.id);
   };
 

@@ -4,11 +4,12 @@ const isDev = import.meta.env.DEV;
 
 // API_BASE_URL priority:
 // 1. VITE_API_BASE_URL env var (set in .env.local or Vercel)
-// 2. Dev mode: http://localhost:8060
-// 3. Production: https://council-ticket-system-2.onrender.com
+// 2. Fallback: localhost in dev, Render in production
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  (isDev ? "http://localhost:8060" : "https://council-ticket-system-2.onrender.com");
+  (isDev
+    ? "http://localhost:8000"
+    : "https://council-ticket-system.onrender.com");
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -38,6 +38,18 @@ function TicketDetail() {
     }
   }, [currentUser, comments]);
 
+  const canEditComment = (comment) => {
+    if (!currentUser) {
+      return false;
+    }
+
+    if (currentUser.is_admin) {
+      return false;
+    }
+
+    return currentUser.id === comment.user_id;
+  };
+
   const fetchCurrentUser = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -348,38 +360,41 @@ function TicketDetail() {
                         <p style={{ margin: "0 0 1rem 0", whiteSpace: "pre-wrap", lineHeight: "1.5" }}>
                           {comment.text}
                         </p>
-                        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.8rem" }}>
-                          <button
-                            onClick={() => handleEditComment(comment.id, comment.text)}
-                            style={{
-                              padding: "0.6rem 1.2rem",
-                              backgroundColor: "#ffc107",
-                              color: "black",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "0.95rem",
-                              fontWeight: "bold",
-                            }}
-                          >
-                            ✏️ Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteComment(comment.id)}
-                            style={{
-                              padding: "0.6rem 1.2rem",
-                              backgroundColor: "#dc3545",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "0.95rem",
-                              fontWeight: "bold",
-                            }}
-                          >
-                            🗑️ Delete
-                          </button>
-                        </div>
+                        {/* Only students can edit/delete their own comments */}
+                        {canEditComment(comment) && (
+                          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.8rem" }}>
+                            <button
+                              onClick={() => handleEditComment(comment.id, comment.text)}
+                              style={{
+                                padding: "0.6rem 1.2rem",
+                                backgroundColor: "#ffc107",
+                                color: "black",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "0.95rem",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              ✏️ Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              style={{
+                                padding: "0.6rem 1.2rem",
+                                backgroundColor: "#dc3545",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "0.95rem",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              🗑️ Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
