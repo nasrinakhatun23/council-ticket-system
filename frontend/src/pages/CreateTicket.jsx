@@ -174,7 +174,10 @@ function CreateTicket({ onLogout }) {
       setFile(null);
       setPossibleDuplicates([]);
     } catch (error) {
-      const message = error?.response?.data?.detail || "Ticket submit failed. Backend/Cloudinary config check karein.";
+      const message = error?.response?.data?.detail
+        || (error?.code === "ECONNABORTED"
+          ? "Ticket submit timeout hua. Backend cold start ya Cloudinary upload slow ho sakta hai. Dobara try karein."
+          : "Ticket submit failed. Backend/Cloudinary config check karein.");
       alert(message);
     } finally {
       setSubmitting(false);
