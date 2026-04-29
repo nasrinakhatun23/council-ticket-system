@@ -52,7 +52,7 @@
 
 
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form, Request
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import SessionLocal
 import models
@@ -334,6 +334,7 @@ def get_priority_rank(priority: str) -> int:
 # ✅ CREATE TICKET API (FIXED)
 @router.post("/tickets")
 def create_ticket(
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     category: str = Form("General"),
     description: str = Form(...),
@@ -376,22 +377,20 @@ def create_ticket(
         exclude_ticket_id=ticket.id,
     )
 
-    # ✅ EMAIL SEND
-    try:
-        send_email(
-            council_email,
-            "New Ticket Created",
-            (
-                f"Title: {title}\n"
-                f"Category: {category_value}\n"
-                f"Description: {description}\n"
-                f"Location: {location}\n"
-                f"Assigned Council: {council_name}\n"
-                f"Image: {image_url or 'No image attached'}"
-            )
+    # ✅ EMAIL SEND (run after response so ticket submit never waits on SMTP)
+    background_tasks.add_task(
+        send_email,
+        council_email,
+        "New Ticket Created",
+        (
+            f"Title: {title}\n"
+            f"Category: {category_value}\n"
+            f"Description: {description}\n"
+            f"Location: {location}\n"
+            f"Assigned Council: {council_name}\n"
+            f"Image: {image_url or 'No image attached'}"
         )
-    except Exception:
-        pass
+    )
 
     payload = serialize_ticket(ticket, has_voted=False)
     payload["duplicate_matches"] = duplicate_matches

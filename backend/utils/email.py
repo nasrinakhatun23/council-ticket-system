@@ -23,6 +23,6 @@ def send_email(to_email, subject, body):
     msg["From"] = sender
     msg["To"] = to_email
 
-    with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+    with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10) as server:
         server.login(sender, password)
         server.send_message(msg)
