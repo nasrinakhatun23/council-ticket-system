@@ -161,11 +161,7 @@ function CreateTicket({ onLogout }) {
 
     try {
       setSubmitting(true);
-      await api.post("/tickets", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      await api.post("/tickets", formData);
       alert("Ticket Created");
       setTitle("");
       setCategory("English");
